@@ -1,0 +1,13 @@
+# Node modules
+node_modules/
+frontend/node_modules/
+smart-contract/node_modules/
+
+# Env files
+*.env
+frontend/*.env
+smart-contract/*.env
+
+# Logs and OS files
+*.log
+.DS_Store
