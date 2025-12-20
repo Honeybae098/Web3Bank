@@ -20,7 +20,7 @@ import type {
   TypedLogDescription,
   TypedListener,
   TypedContractMethod,
-} from "./common";
+} from "../common";
 
 export interface CounterInterface extends Interface {
   getFunction(nameOrSignature: "inc" | "incBy" | "x"): FunctionFragment;

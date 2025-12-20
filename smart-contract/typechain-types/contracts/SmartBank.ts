@@ -28,8 +28,8 @@ export interface SmartBankInterface extends Interface {
     nameOrSignature:
       | "BASE_RATE_FACTOR"
       | "INTEREST_RATE_BP"
-      | "balances"
       | "deposit"
+      | "getBalance"
       | "lastInterestCalculationTime"
       | "owner"
       | "rescueEther"
@@ -37,7 +37,7 @@ export interface SmartBankInterface extends Interface {
   ): FunctionFragment;
 
   getEvent(
-    nameOrSignatureOrTopic: "Deposit" | "InterestApplied" | "Withdrawal"
+    nameOrSignatureOrTopic: "Deposit" | "InterestApplied" | "Withdraw"
   ): EventFragment;
 
   encodeFunctionData(
@@ -48,11 +48,11 @@ export interface SmartBankInterface extends Interface {
     functionFragment: "INTEREST_RATE_BP",
     values?: undefined
   ): string;
-  encodeFunctionData(
-    functionFragment: "balances",
-    values: [AddressLike]
-  ): string;
   encodeFunctionData(functionFragment: "deposit", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "getBalance",
+    values?: undefined
+  ): string;
   encodeFunctionData(
     functionFragment: "lastInterestCalculationTime",
     values: [AddressLike]
@@ -75,8 +75,8 @@ export interface SmartBankInterface extends Interface {
     functionFragment: "INTEREST_RATE_BP",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "balances", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "deposit", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "getBalance", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "lastInterestCalculationTime",
     data: BytesLike
@@ -124,7 +124,7 @@ export namespace InterestAppliedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace WithdrawalEvent {
+export namespace WithdrawEvent {
   export type InputTuple = [user: AddressLike, amount: BigNumberish];
   export type OutputTuple = [user: string, amount: bigint];
   export interface OutputObject {
@@ -184,9 +184,9 @@ export interface SmartBank extends BaseContract {
 
   INTEREST_RATE_BP: TypedContractMethod<[], [bigint], "view">;
 
-  balances: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
-
   deposit: TypedContractMethod<[], [void], "payable">;
+
+  getBalance: TypedContractMethod<[], [bigint], "view">;
 
   lastInterestCalculationTime: TypedContractMethod<
     [arg0: AddressLike],
@@ -215,11 +215,11 @@ export interface SmartBank extends BaseContract {
     nameOrSignature: "INTEREST_RATE_BP"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
-    nameOrSignature: "balances"
-  ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
-  getFunction(
     nameOrSignature: "deposit"
   ): TypedContractMethod<[], [void], "payable">;
+  getFunction(
+    nameOrSignature: "getBalance"
+  ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "lastInterestCalculationTime"
   ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
@@ -248,11 +248,11 @@ export interface SmartBank extends BaseContract {
     InterestAppliedEvent.OutputObject
   >;
   getEvent(
-    key: "Withdrawal"
+    key: "Withdraw"
   ): TypedContractEvent<
-    WithdrawalEvent.InputTuple,
-    WithdrawalEvent.OutputTuple,
-    WithdrawalEvent.OutputObject
+    WithdrawEvent.InputTuple,
+    WithdrawEvent.OutputTuple,
+    WithdrawEvent.OutputObject
   >;
 
   filters: {
@@ -278,15 +278,15 @@ export interface SmartBank extends BaseContract {
       InterestAppliedEvent.OutputObject
     >;
 
-    "Withdrawal(address,uint256)": TypedContractEvent<
-      WithdrawalEvent.InputTuple,
-      WithdrawalEvent.OutputTuple,
-      WithdrawalEvent.OutputObject
+    "Withdraw(address,uint256)": TypedContractEvent<
+      WithdrawEvent.InputTuple,
+      WithdrawEvent.OutputTuple,
+      WithdrawEvent.OutputObject
     >;
-    Withdrawal: TypedContractEvent<
-      WithdrawalEvent.InputTuple,
-      WithdrawalEvent.OutputTuple,
-      WithdrawalEvent.OutputObject
+    Withdraw: TypedContractEvent<
+      WithdrawEvent.InputTuple,
+      WithdrawEvent.OutputTuple,
+      WithdrawEvent.OutputObject
     >;
   };
 }

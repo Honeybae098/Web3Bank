@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-contract MyToken {
-    string public name = "MyToken";
-    uint256 public totalSupply = 1000;
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-    mapping(address => uint256) public balances;
+contract MyToken is ReentrancyGuard {
+    mapping(address => uint256) private balances;
 
-    constructor() {
-        balances[msg.sender] = totalSupply;
+    function deposit() external payable {
+        require(msg.value > 0, "Deposit must be greater than zero");
+        balances[msg.sender] += msg.value;
     }
 
-    function transfer(address to, uint256 amount) public {
-        require(balances[msg.sender] >= amount, "Not enough tokens");
+    function withdraw(uint256 amount) external nonReentrant {
+        require(balances[msg.sender] >= amount, "Insufficient balance");
         balances[msg.sender] -= amount;
-        balances[to] += amount;
+        payable(msg.sender).transfer(amount);
+    }
+
+    function getBalance() external view returns (uint256) {
+        return balances[msg.sender];
     }
 }
