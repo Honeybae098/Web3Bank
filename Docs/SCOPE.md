@@ -73,7 +73,7 @@ Copy code
 withdraw()
 ├─ check balance
 ├─ update balance ✅
-├─ lock (nonReentrant) 🔒
+├─ lock (nonReentrant)
 └─ send ETH
 
 ````solidity
