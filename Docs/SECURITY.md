@@ -22,7 +22,7 @@ The primary security objectives of SmartBank are:
 - The contract uses OpenZeppelin’s `ReentrancyGuard`.
 - The `withdraw()` function is protected using the `nonReentrant` modifier.
 - The Checks–Effects–Interactions pattern is followed to prevent reentrancy attacks.
-
+ 
 ### 2.2 Input Validation
 - Deposits require `msg.value > 0`.
 - Withdrawals are restricted to the user’s available balance.
