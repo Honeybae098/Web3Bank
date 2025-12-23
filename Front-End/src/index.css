@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import SmartBank Design System */
+@import './styles/design-system.css';
+
+/* Base Styles */
+body {
+  margin: 0;
+  font-family: var(--font-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #1e3a8a 0%, #7c3aed 50%, #db2777 100%);
+  min-height: 100vh;
+}
+
+code {
+  font-family: var(--font-mono);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Focus styles for accessibility */
+*:focus {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Selection styles */
+::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: white;
+}

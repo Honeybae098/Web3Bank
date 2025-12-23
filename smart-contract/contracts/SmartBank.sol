@@ -24,6 +24,11 @@ contract SmartBank is
     }
     mapping(address => Transaction[]) private userHistory;
 
+    // EVENTS for Web3 Authentication & Multi-User Design
+    event Deposit(address indexed user, uint256 amount, uint256 timestamp);
+    event Withdraw(address indexed user, uint256 amount, uint256 timestamp);
+    event InterestPaid(address indexed user, uint256 amount, uint256 timestamp);
+
     // Constants
     uint256 public constant INTEREST_RATE_BP = 500;  // 5% 
     uint256 public constant PERFORMANCE_FEE_BP = 1000; // 10% of earned interest
@@ -52,6 +57,9 @@ contract SmartBank is
         
         balances[msg.sender] += msg.value;
         _recordTransaction(msg.sender, "Deposit", msg.value);
+        
+        // Emit event for Web3 transaction history
+        emit Deposit(msg.sender, msg.value, block.timestamp);
     }
 
 
@@ -72,6 +80,9 @@ contract SmartBank is
         // Transfer
         (bool success, ) = msg.sender.call{value: amount}("");
         require(success, "Transfer failed");
+        
+        // Emit event for Web3 transaction history
+        emit Withdraw(msg.sender, amount, block.timestamp);
     }
 
 
@@ -96,6 +107,9 @@ contract SmartBank is
                 totalTreasuryFees += bankCut; // Store the fee in the treasury
 
                 _recordTransaction(user, "Interest Earned", userShare);
+                
+                // Emit event for Web3 transaction history
+                emit InterestPaid(user, userShare, currentTime);
             }
         }
         lastInterestCalculationTime[user] = currentTime;
