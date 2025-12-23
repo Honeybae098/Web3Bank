@@ -1,12 +1,15 @@
 {
+  "name": "smartbank",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "commonjs",
   "dependencies": {
-    "dotenv": "^17.2.3"
+    "@openzeppelin/contracts-upgradeable": "^5.1.0",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "^4.0.2",
-    "ethers": "^6.15.0",
-    "hardhat": "^3.0.10",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/hardhat-upgrades": "^3.9.0",
+    "hardhat": "^2.22.15"
   }
 }

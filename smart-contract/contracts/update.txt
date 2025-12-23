@@ -1,0 +1,27 @@
+1. METHOD: UUPS Proxy Pattern
+we are using the UUPS (Universal Upgradeable Proxy Standard).
+- How it works: Instead of deploying a single contract that can never be changed, you deploy two parts:
+- The Proxy (Storage): This holds the State (the actual ETH, user balances, and history). Its address never changes.
+- The Implementation (Logic): This holds the Logic (the code you provided).
+- The Benefit: If you want to change the interest rate from 5% to 6%, you swap the "Logic" but the "Storage" keeps all the money and history safe.
+
+
+2. CORE FEATURE
+- deposit: user deposit the money (
+    - check dep osit amount
+    - applyInterest
+    - update state
+)
+- withdraw: user withdraw the money (
+    - security:ReentrancyGuard
+    - applyInterest
+    - check balances with withdraw amount
+    - check Bank Liquidity with withdraw amount after interest
+    - update state
+     )
+- applyInterest (
+    - interest is applied when a user trigger transaction
+    - calculate per second
+    - cut 10% after interest is applied (this is used as an income for the Bank)
+)
+- recordTransaction
