@@ -1,5 +1,5 @@
 // Connect Wallet Component - Simple MetaMask Web3 Authentication
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Wallet, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 
 const ConnectWallet = ({ onConnected, className = '' }) => {
@@ -13,6 +13,18 @@ const ConnectWallet = ({ onConnected, className = '' }) => {
   useEffect(() => {
     checkMetaMaskInstallation();
   }, []);
+
+  /**
+   * Handle successful wallet connection
+   */
+  const handleWalletConnected = useCallback((address) => {
+    if (onConnected) {
+      onConnected({
+        address,
+        network
+      });
+    }
+  }, [onConnected, network]);
 
   // Listen for account and network changes
   useEffect(() => {
@@ -46,7 +58,7 @@ const ConnectWallet = ({ onConnected, className = '' }) => {
         window.ethereum.removeListener('chainChanged', handleChainChanged);
       };
     }
-  }, [connectedAddress]);
+  }, [connectedAddress, handleWalletConnected]);
 
   /**
    * Check if MetaMask is installed
@@ -117,17 +129,7 @@ const ConnectWallet = ({ onConnected, className = '' }) => {
     }
   };
 
-  /**
-   * Handle successful wallet connection
-   */
-  const handleWalletConnected = (address) => {
-    if (onConnected) {
-      onConnected({
-        address,
-        network
-      });
-    }
-  };
+
 
   /**
    * Get network name from chain ID

@@ -1,5 +1,5 @@
 // Authentication Guard Component - Protected route wrapper with authentication checks
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Shield, Lock, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -19,15 +19,12 @@ const AuthGuard = ({
     isInitializing,
     user, 
     sessionStatus,
-    login,
-    register,
     clearError,
     error 
   } = useAuth();
 
   // Local state
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
   const [authStep, setAuthStep] = useState('choice'); // 'choice', 'login', 'register'
 
   // Clear errors when component mounts
@@ -51,12 +48,12 @@ const AuthGuard = ({
   }, [isAuthenticated, isLoading, isInitializing, redirectToLogin, onAuthRequired, showLoginPrompt]);
 
   // Check role requirements
-  const hasRequiredRole = () => {
+  const hasRequiredRole = useCallback(() => {
     if (!requireRole || !user) {
       return true;
     }
     return user.role === requireRole;
-  };
+  }, [requireRole, user]);
 
   // Handle role requirement failure
   useEffect(() => {
@@ -64,32 +61,31 @@ const AuthGuard = ({
       console.warn(`Access denied. Required role: ${requireRole}, User role: ${user.role}`);
       // Could show a role-based error message here
     }
-  }, [user, requireRole]);
+  }, [user, requireRole, hasRequiredRole]);
 
   /**
    * Handle successful authentication
    */
-  const handleAuthSuccess = (authenticatedUser) => {
+  const handleAuthSuccess = useCallback((authenticatedUser) => {
     setShowAuthModal(false);
     setAuthStep('choice');
     // Optionally refresh the page or trigger a re-render
-  };
+  }, []);
 
   /**
    * Handle authentication error
    */
-  const handleAuthError = (errorMessage) => {
+  const handleAuthError = useCallback((errorMessage) => {
     console.error('Authentication error:', errorMessage);
     // Error is handled by the auth context
-  };
+  }, []);
 
   /**
    * Switch authentication mode
    */
-  const switchAuthMode = (mode) => {
-    setAuthMode(mode);
+  const switchAuthMode = useCallback((mode) => {
     setAuthStep(mode);
-  };
+  }, []);
 
   /**
    * Close auth modal

@@ -1,6 +1,7 @@
 // Signature Service - Web3 Authentication using message signing
 import { ethers } from 'ethers';
 import { AUTH_CONFIG, AUTH_ERRORS } from '../config/authConfig';
+import addressUtils from '../utils/addressUtils';
 
 class SignatureService {
   constructor() {
@@ -16,7 +17,8 @@ class SignatureService {
   async initializeProvider(windowEthereum) {
     try {
       if (!windowEthereum) {
-        throw new Error('No Ethereum provider found');
+        console.warn('No Ethereum provider found - running in development mode');
+        return false; // Return false instead of throwing
       }
 
       this.provider = new ethers.BrowserProvider(windowEthereum);
@@ -24,7 +26,8 @@ class SignatureService {
       return true;
     } catch (error) {
       console.error('Failed to initialize provider:', error);
-      throw new Error(AUTH_ERRORS.WALLET_NOT_CONNECTED);
+      console.warn('Provider initialization failed - continuing in development mode');
+      return false; // Return false instead of throwing
     }
   }
 
@@ -47,10 +50,18 @@ class SignatureService {
     const timestamp = Date.now();
     const expires = timestamp + (30 * 60 * 1000); // 30 minutes from now
     
-    return AUTH_CONFIG.AUTH_MESSAGE_TEMPLATE
-      .replace('{nonce}', nonce)
-      .replace('{timestamp}', new Date(timestamp).toISOString())
-      .replace('{expires}', new Date(expires).toISOString());
+    // Create a comprehensive authentication message
+    const message = `SmartBank Authentication Request
+
+Nonce: ${nonce}
+Timestamp: ${new Date(timestamp).toISOString()}
+Expires: ${new Date(expires).toISOString()}
+
+This request will not trigger a blockchain transaction or cost any gas fees.
+
+Sign this message to verify your identity and authenticate with SmartBank.`;
+    
+    return message;
   }
 
   /**
@@ -66,7 +77,10 @@ class SignatureService {
       }
 
       const currentAddress = await this.signer.getAddress();
-      if (currentAddress.toLowerCase() !== address.toLowerCase()) {
+      
+      // Use address utilities for consistent comparison
+      const addressesMatch = addressUtils.compareAddresses(address, currentAddress);
+      if (!addressesMatch) {
         throw new Error('Address mismatch during signature request');
       }
 
@@ -99,21 +113,24 @@ class SignatureService {
       // Recover the address from the signature
       const recoveredAddress = ethers.verifyMessage(message, signature);
       
-      // Check if recovered address matches expected address
-      const isValid = recoveredAddress.toLowerCase() === expectedAddress.toLowerCase();
+      // Use address utilities for consistent comparison
+      const verificationResult = addressUtils.extractAndValidateAddress(signature, message, expectedAddress);
       
       return {
-        isValid,
-        recoveredAddress,
-        expectedAddress: expectedAddress.toLowerCase(),
-        matches: isValid
+        isValid: verificationResult.matches,
+        recoveredAddress: verificationResult.recoveredAddress,
+        expectedAddress: verificationResult.normalizedExpected,
+        normalizedActual: verificationResult.normalizedActual,
+        matches: verificationResult.matches,
+        error: verificationResult.error
       };
     } catch (error) {
       console.error('Signature verification failed:', error);
       return {
         isValid: false,
         recoveredAddress: null,
-        expectedAddress: expectedAddress.toLowerCase(),
+        expectedAddress: addressUtils.normalizeAddress(expectedAddress),
+        normalizedActual: null,
         matches: false,
         error: error.message
       };

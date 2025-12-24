@@ -89,7 +89,7 @@ class SmartBankService {
       const history = await this.contract.getHistory(userAddress);
       const formattedHistory = history.map(tx => {
         // Normalize transaction type names to match events
-        const normalizedType = tx.txType === 'Interest Earned' ? 'InterestPaid' : tx.txType;
+        const normalizedType = tx.txType;
         
         return {
           id: `${tx.txType}-${tx.timestamp}-${tx.amount}`,
@@ -380,16 +380,66 @@ class SmartBankService {
     try {
       const principal = parseFloat(balance);
       const rate = 0.05; // 5% annual rate
-      const interest = principal * rate * timePassedYears;
+      const rawInterest = principal * rate * timePassedYears;
+      const performanceFee = rawInterest * 0.10; // 10% performance fee
+      const userInterest = rawInterest - performanceFee;
+      
       return {
         success: true,
         principal,
-        rate,
+        rate: rate * 100, // Convert to percentage for display
         timeYears: timePassedYears,
-        estimatedInterest: interest.toFixed(6),
-        totalAfterInterest: (principal + interest).toFixed(6)
+        rawInterest: rawInterest.toFixed(6),
+        performanceFee: performanceFee.toFixed(6),
+        userInterest: userInterest.toFixed(6),
+        totalAfterInterest: (principal + userInterest).toFixed(6),
+        feePercentage: 10
       };
     } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get detailed interest information for a user
+   * Calculates current projected interest based on time since last calculation
+   */
+  async getInterestDetails(userAddress) {
+    try {
+      if (!this.contract) {
+        throw new Error('Contract not initialized');
+      }
+
+      const balance = await this.contract.getBalance(userAddress);
+      const lastCalculationTime = await this.contract.lastInterestCalculationTime(userAddress);
+      
+      const currentTime = Math.floor(Date.now() / 1000);
+      const timePassed = currentTime - Number(lastCalculationTime);
+      const yearsPassed = timePassed / 31536000; // Convert seconds to years
+      
+      const principal = parseFloat(ethers.formatEther(balance));
+      const rawInterest = principal * 0.05 * yearsPassed; // 5% annual rate
+      const performanceFee = rawInterest * 0.10; // 10% fee
+      const netInterest = rawInterest - performanceFee;
+      
+      return {
+        success: true,
+        principal: principal.toFixed(6),
+        timePassedYears: yearsPassed.toFixed(6),
+        timePassedDays: (timePassed / 86400).toFixed(2),
+        rawInterest: rawInterest.toFixed(6),
+        performanceFee: performanceFee.toFixed(6),
+        netInterest: netInterest.toFixed(6),
+        projectedBalance: (principal + netInterest).toFixed(6),
+        nextCalculationTime: Number(lastCalculationTime) + 31536000, // Next year
+        ratePercentage: 5,
+        feePercentage: 10
+      };
+    } catch (error) {
+      console.error('Failed to get interest details:', error);
       return {
         success: false,
         error: error.message

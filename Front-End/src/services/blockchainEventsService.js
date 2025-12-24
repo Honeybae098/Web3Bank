@@ -64,28 +64,36 @@ class BlockchainEventsService {
         limit = 100
       } = options;
 
+      console.log(`Fetching transaction history for ${userAddress} from block ${fromBlock} to ${toBlock}`);
       const allEvents = [];
 
       // Fetch events for each type using ethers v6 syntax
       for (const eventType of eventTypes) {
         try {
+          console.log(`Fetching ${eventType} events for ${userAddress}`);
           const filter = this.contract.filters[eventType](userAddress);
           const events = await this.contract.queryFilter(filter, fromBlock, toBlock);
           
+          console.log(`Found ${events.length} ${eventType} events`);
+          
           // Parse events and add metadata
-          const parsedEvents = events.slice(-limit).map(event => {
+          const parsedEvents = events.map(event => {
             const parsedEvent = this.parseEvent(event);
-            return {
-              ...parsedEvent,
-              eventType: eventType, // Use the eventType from the filter
-              type: eventType,
-              transactionHash: event.transactionHash,
-              blockNumber: event.blockNumber,
-              logIndex: event.logIndex,
-              dataSource: 'blockchain_event'
-            };
-          });
+            if (parsedEvent) {
+              return {
+                ...parsedEvent,
+                eventType: eventType, // Use the eventType from the filter
+                type: eventType,
+                transactionHash: event.transactionHash,
+                blockNumber: event.blockNumber,
+                logIndex: event.logIndex,
+                dataSource: 'blockchain_event'
+              };
+            }
+            return null;
+          }).filter(Boolean); // Remove null entries
 
+          console.log(`Successfully parsed ${parsedEvents.length} ${eventType} events`);
           allEvents.push(...parsedEvents);
         } catch (eventError) {
           console.warn(`Failed to fetch ${eventType} events:`, eventError);
@@ -93,9 +101,16 @@ class BlockchainEventsService {
       }
 
       // Sort by timestamp (most recent first)
-      allEvents.sort((a, b) => b.timestamp - a.timestamp);
+      allEvents.sort((a, b) => {
+        if (!a.timestamp || !b.timestamp) return 0;
+        return b.timestamp - a.timestamp;
+      });
 
-      return allEvents.slice(0, limit);
+      // Apply limit
+      const limitedEvents = allEvents.slice(0, limit);
+      console.log(`Returning ${limitedEvents.length} total events out of ${allEvents.length} found`);
+
+      return limitedEvents;
     } catch (error) {
       console.error('Failed to get user transaction history:', error);
       return [];
@@ -185,63 +200,115 @@ class BlockchainEventsService {
         throw new Error('Service not initialized');
       }
 
+      if (!userAddress || typeof callback !== 'function') {
+        throw new Error('Valid user address and callback function required');
+      }
+
+      console.log(`Setting up event subscriptions for user: ${userAddress}`);
+      
       const subscriptions = [];
 
       // Subscribe to Deposit events
       const depositFilter = this.contract.filters.Deposit(userAddress);
-      const depositSubscription = this.contract.on(depositFilter, (user, amount, timestamp, event) => {
-        const parsedEvent = this.parseEvent({ args: { user, amount, timestamp }, ...event });
-        callback({
-          ...parsedEvent,
-          eventType: 'Deposit',
-          type: 'Deposit',
-          transactionHash: event.transactionHash,
-          blockNumber: event.blockNumber,
-          logIndex: event.logIndex,
-          dataSource: 'realtime_event',
-          isNew: true
-        });
+      const depositSubscription = this.contract.on(depositFilter, (event) => {
+        try {
+          console.log('Deposit event received:', event);
+          
+          const parsedEvent = this.parseEvent(event);
+          if (parsedEvent) {
+            callback({
+              ...parsedEvent,
+              eventType: 'Deposit',
+              type: 'Deposit',
+              transactionHash: event.transactionHash,
+              blockNumber: event.blockNumber,
+              logIndex: event.logIndex,
+              dataSource: 'realtime_event',
+              isNew: true
+            });
+          }
+        } catch (eventError) {
+          console.error('Error processing deposit event:', eventError);
+        }
       });
-      subscriptions.push(depositSubscription);
+      
+      if (depositSubscription && typeof depositSubscription.removeAllListeners === 'function') {
+        subscriptions.push(depositSubscription);
+      }
 
       // Subscribe to Withdraw events
       const withdrawFilter = this.contract.filters.Withdraw(userAddress);
-      const withdrawSubscription = this.contract.on(withdrawFilter, (user, amount, timestamp, event) => {
-        const parsedEvent = this.parseEvent({ args: { user, amount, timestamp }, ...event });
-        callback({
-          ...parsedEvent,
-          eventType: 'Withdraw',
-          type: 'Withdraw',
-          transactionHash: event.transactionHash,
-          blockNumber: event.blockNumber,
-          logIndex: event.logIndex,
-          dataSource: 'realtime_event',
-          isNew: true
-        });
+      const withdrawSubscription = this.contract.on(withdrawFilter, (event) => {
+        try {
+          console.log('Withdraw event received:', event);
+          
+          const parsedEvent = this.parseEvent(event);
+          if (parsedEvent) {
+            callback({
+              ...parsedEvent,
+              eventType: 'Withdraw',
+              type: 'Withdraw',
+              transactionHash: event.transactionHash,
+              blockNumber: event.blockNumber,
+              logIndex: event.logIndex,
+              dataSource: 'realtime_event',
+              isNew: true
+            });
+          }
+        } catch (eventError) {
+          console.error('Error processing withdraw event:', eventError);
+        }
       });
-      subscriptions.push(withdrawSubscription);
+      
+      if (withdrawSubscription && typeof withdrawSubscription.removeAllListeners === 'function') {
+        subscriptions.push(withdrawSubscription);
+      }
 
       // Subscribe to InterestPaid events
       const interestFilter = this.contract.filters.InterestPaid(userAddress);
-      const interestSubscription = this.contract.on(interestFilter, (user, amount, timestamp, event) => {
-        const parsedEvent = this.parseEvent({ args: { user, amount, timestamp }, ...event });
-        callback({
-          ...parsedEvent,
-          eventType: 'InterestPaid',
-          type: 'InterestPaid',
-          transactionHash: event.transactionHash,
-          blockNumber: event.blockNumber,
-          logIndex: event.logIndex,
-          dataSource: 'realtime_event',
-          isNew: true
-        });
+      const interestSubscription = this.contract.on(interestFilter, (event) => {
+        try {
+          console.log('InterestPaid event received:', event);
+          
+          const parsedEvent = this.parseEvent(event);
+          if (parsedEvent) {
+            callback({
+              ...parsedEvent,
+              eventType: 'InterestPaid',
+              type: 'InterestPaid',
+              transactionHash: event.transactionHash,
+              blockNumber: event.blockNumber,
+              logIndex: event.logIndex,
+              dataSource: 'realtime_event',
+              isNew: true
+            });
+          }
+        } catch (eventError) {
+          console.error('Error processing interest event:', eventError);
+        }
       });
-      subscriptions.push(interestSubscription);
+      
+      if (interestSubscription && typeof interestSubscription.removeAllListeners === 'function') {
+        subscriptions.push(interestSubscription);
+      }
 
       // Return unsubscribe function
       return {
         unsubscribe: () => {
-          subscriptions.forEach(sub => sub.removeAllListeners());
+          console.log('Unsubscribing from event subscriptions');
+          subscriptions.forEach((sub, index) => {
+            try {
+              if (sub && typeof sub.removeAllListeners === 'function') {
+                sub.removeAllListeners();
+              } else if (this.contract) {
+                // Fallback: remove all listeners for this filter
+                this.contract.removeAllListeners();
+              }
+            } catch (unsubscribeError) {
+              console.warn(`Failed to unsubscribe subscription ${index}:`, unsubscribeError);
+            }
+          });
+          subscriptions.length = 0;
         }
       };
     } catch (error) {
@@ -257,42 +324,118 @@ class BlockchainEventsService {
    */
   parseEvent(event) {
     try {
-      const { args } = event;
+      console.log('Parsing event:', event);
+      
+      // Handle different event formats from MetaMask and direct calls
+      let args, eventType;
+      
+      if (event.args) {
+        args = event.args;
+      } else if (event.fragment && event.fragment.inputs) {
+        // Handle events from queryFilter
+        args = event.args;
+      } else {
+        console.warn('Event does not have args:', event);
+        return null;
+      }
       
       // Ensure we have valid args
-      if (!args || args.length < 3) {
+      if (!args) {
         console.warn('Invalid event args:', args);
         return null;
       }
       
-      const user = args.user || args[0];
-      const amount = args.amount || args[1];
-      const timestamp = args.timestamp || args[2];
+      // Extract values using multiple fallback methods for MetaMask compatibility
+      const user = args.user || args[0] || event.user || this.extractFromIndexedArgs(event, 'user');
+      const amount = args.amount || args[1] || event.amount || this.extractFromIndexedArgs(event, 'amount');
+      const timestamp = args.timestamp || args[2] || event.timestamp || this.extractFromIndexedArgs(event, 'timestamp');
       
       // Validate critical fields
       if (!user || amount === undefined || timestamp === undefined) {
-        console.warn('Missing critical event fields:', { user, amount, timestamp });
+        console.warn('Missing critical event fields:', { user, amount, timestamp, args, event });
         return null;
       }
       
-      const formattedTimestamp = new Date(Number(timestamp) * 1000).toLocaleString();
+      // Convert values to appropriate types
+      let userAddress = user;
+      let amountWei = amount;
+      let timestampValue = timestamp;
       
-      return {
-        user: user.toString(),
-        amount: ethers.formatEther(amount),
-        rawAmount: amount.toString(),
-        timestamp: Number(timestamp),
-        formattedAmount: this.formatAmount(amount),
+      // Handle BigInt amounts (common in ethers v6)
+      if (typeof amountWei === 'bigint') {
+        amountWei = amountWei.toString();
+      }
+      
+      // Convert timestamp to number
+      if (typeof timestampValue === 'bigint') {
+        timestampValue = Number(timestampValue);
+      }
+      
+      const formattedTimestamp = new Date(Number(timestampValue) * 1000).toLocaleString();
+      
+      // Determine event type from multiple sources
+      if (event.fragment && event.fragment.name) {
+        eventType = event.fragment.name;
+      } else if (event.event) {
+        eventType = event.event;
+      } else if (event.address) {
+        // Try to determine from contract address or other context
+        eventType = 'Unknown';
+      } else {
+        eventType = 'Unknown';
+      }
+      
+      // Generate unique ID for the event
+      const eventId = `event-${event.transactionHash || 'unknown'}-${event.logIndex || 0}`;
+      
+      const parsedEvent = {
+        id: eventId,
+        user: userAddress.toString().toLowerCase(),
+        amount: ethers.formatEther(amountWei),
+        rawAmount: amountWei.toString(),
+        timestamp: Number(timestampValue),
+        formattedAmount: this.formatAmount(amountWei),
         formattedTimestamp: formattedTimestamp,
-        eventType: this.getEventTypeFromContext(event), // Determine type from event context
-        type: this.getEventTypeFromContext(event),
+        eventType: eventType,
+        type: eventType,
         blockNumber: event.blockNumber || 0,
         transactionHash: event.transactionHash || '',
         logIndex: event.logIndex || 0,
         dataSource: 'blockchain_event'
       };
+      
+      console.log('Successfully parsed event:', parsedEvent);
+      return parsedEvent;
+      
     } catch (error) {
-      console.error('Failed to parse event:', error);
+      console.error('Failed to parse event:', error, 'Event:', event);
+      return null;
+    }
+  }
+
+  /**
+   * Extract parameter from indexed event arguments
+   * @param {Object} event - Event object
+   * @param {string} paramName - Parameter name to extract
+   * @returns {*} Parameter value
+   */
+  extractFromIndexedArgs(event, paramName) {
+    try {
+      if (event.args && Array.isArray(event.args)) {
+        // Try to match by parameter index based on event signature
+        const paramMap = {
+          'user': 0,
+          'amount': 1, 
+          'timestamp': 2
+        };
+        const index = paramMap[paramName];
+        if (index !== undefined && event.args[index] !== undefined) {
+          return event.args[index];
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn('Failed to extract from indexed args:', error);
       return null;
     }
   }

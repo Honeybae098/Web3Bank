@@ -22,20 +22,59 @@ class AuthService {
         return true;
       }
 
-      // Initialize signature service if provider is available
-      if (windowEthereum) {
-        await signatureService.initializeProvider(windowEthereum);
-      }
+      // Add timeout to prevent hanging
+      const initTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Auth service initialization timeout')), 2000);
+      });
 
-      // Try to restore existing session
-      this.loadExistingSession();
+      const initPromise = this._doInitialize(windowEthereum);
+      
+      await Promise.race([initPromise, initTimeout]);
 
       this.isInitialized = true;
-      console.log('Authentication service initialized');
+      console.log('Authentication service initialized successfully');
       return true;
     } catch (error) {
-      console.error('Failed to initialize auth service:', error);
-      return false;
+      console.warn('Auth service initialization failed:', error.message);
+      // Mark as initialized even on failure to prevent hanging
+      this.isInitialized = true;
+      console.log('Authentication service initialized with limited functionality');
+      return true;
+    }
+  }
+
+  /**
+   * Core initialization logic
+   * @param {Object} windowEthereum - Ethereum provider
+   * @returns {Promise<boolean>} Success status
+   */
+  async _doInitialize(windowEthereum) {
+    try {
+      // Initialize signature service if provider is available (graceful handling)
+      if (windowEthereum) {
+        try {
+          const providerInitialized = await signatureService.initializeProvider(windowEthereum);
+          if (!providerInitialized) {
+            console.warn('Provider initialization failed, continuing in development mode');
+          }
+        } catch (providerError) {
+          console.warn('Provider initialization error:', providerError.message);
+        }
+      } else {
+        console.warn('No Ethereum provider available - running in development mode');
+      }
+
+      // Try to restore existing session (graceful handling)
+      try {
+        this.loadExistingSession();
+      } catch (sessionError) {
+        console.warn('Session restoration failed:', sessionError.message);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Core initialization failed:', error);
+      throw error;
     }
   }
 

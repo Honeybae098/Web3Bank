@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract SmartBank is 
-    Initializable, 
-    UUPSUpgradeable, 
-    OwnableUpgradeable, 
-    ReentrancyGuardUpgradeable 
-{
+contract SmartBank is OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
     // STORAGE
     mapping(address => uint256) private balances;
     mapping(address => uint256) public lastInterestCalculationTime;
@@ -35,19 +29,16 @@ contract SmartBank is
     uint256 public constant BASE_RATE_FACTOR = 10000; // Performance Fee: fee from withdraw amount (cut 10%)
     uint256 public constant SECONDS_IN_YEAR = 31536000;
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
+    // UPGRADE PATTERN
+    /// @custom:oz-retyped-from constructor
     function initialize() public initializer {
         __Ownable_init(msg.sender);
-        __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
-
+    /// @custom:oz-retyped-from Ownable
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     // CORE FEATURES
     /// DEPOSIT FEATURE
@@ -61,7 +52,6 @@ contract SmartBank is
         // Emit event for Web3 transaction history
         emit Deposit(msg.sender, msg.value, block.timestamp);
     }
-
 
     /// WITHDRAW FEATURE
     function withdraw(uint256 amount) public nonReentrant {
@@ -85,7 +75,6 @@ contract SmartBank is
         emit Withdraw(msg.sender, amount, block.timestamp);
     }
 
-
     /// APPLY INTEREST
     function _applyInterest(address user) internal {
         uint256 currentTime = block.timestamp;
@@ -106,7 +95,7 @@ contract SmartBank is
                 balances[user] += userShare;
                 totalTreasuryFees += bankCut; // Store the fee in the treasury
 
-                _recordTransaction(user, "Interest Earned", userShare);
+                _recordTransaction(user, "InterestPaid", userShare);
                 
                 // Emit event for Web3 transaction history
                 emit InterestPaid(user, userShare, currentTime);
@@ -119,8 +108,6 @@ contract SmartBank is
     function _recordTransaction(address user, string memory _type, uint256 _amount) internal {
         userHistory[user].push(Transaction(_type, _amount, block.timestamp));
     }
-
-    
 
     // VIEW FUNCTIONS
     function getBankStatistics() external view returns (uint256 totalLiquidity, uint256 bankProfit) {

@@ -1,25 +1,93 @@
 // src/pages/Deposit.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowDownCircle } from 'lucide-react';
 import InfoCard from '../components/InfoCard';
+import { useWeb3 } from '../contexts/Web3Context';
+import smartBankService from '../services/smartBankService';
 
 const DepositPage = ({ onNavigate }) => {
+  const { address, network, isConnected, canTransact, isAuthenticated, isContractInitialized } = useWeb3();
   const [amount, setAmount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [balance, setBalance] = useState('0');
 
-  const handleDeposit = () => {
+  // Load balance when contract is initialized
+  useEffect(() => {
+    if (isContractInitialized && address) {
+      loadBalance();
+    }
+  }, [isContractInitialized, address]);
+
+  // Load current SmartBank balance
+  const loadBalance = async () => {
+    if (!isContractInitialized || !address) return;
+    
+    try {
+      const balanceResult = await smartBankService.getUserBalance(address);
+      if (balanceResult.success) {
+        setBalance(balanceResult.balance);
+      }
+    } catch (_error) {
+      console.error('Failed to load balance:', _error);
+    }
+  };
+
+  // Load balance when component mounts or when transaction completes
+  useEffect(() => {
+    if (isContractInitialized && address) {
+      loadBalance();
+    }
+  }, [isContractInitialized, address]);
+
+  const handleDeposit = async () => {
     if (!amount || parseFloat(amount) <= 0) {
-      alert('Please enter a valid amount');
+      setError('Please enter a valid amount');
       return;
     }
+
+    if (!isContractInitialized) {
+      setError('Contract not initialized');
+      return;
+    }
+
+    if (!canTransact) {
+      setError('Please authenticate and connect wallet first');
+      return;
+    }
+
     setIsLoading(true);
-    
-    // TODO: Web3 Integration - Phase 3
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      console.log('Initiating deposit...', { amount, address });
+
+      const result = await smartBankService.deposit(amount, address);
+
+      if (result.success) {
+        console.log('Deposit successful:', result);
+
+        // Refresh balance after successful deposit
+        setTimeout(async () => {
+          await loadBalance();
+        }, 2000);
+
+        alert(`Deposit of ${amount} ETH successful!\nTransaction: ${result.transactionHash}`);
+        setAmount('');
+
+        // Navigate back to dashboard after successful deposit
+        setTimeout(() => {
+          onNavigate('dashboard');
+        }, 3000);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Deposit failed:', error);
+      setError(`Deposit failed: ${error.message}`);
+    } finally {
       setIsLoading(false);
-      alert(`Deposit of ${amount} ETH initiated`);
-      setAmount('');
-    }, 1500);
+    }
   };
 
   return (
@@ -51,22 +119,44 @@ const DepositPage = ({ onNavigate }) => {
               />
             </div>
 
+            {error && (
+              <div className="bg-red-900 bg-opacity-30 border border-red-400 border-opacity-30 rounded-lg p-4">
+                <p className="text-sm text-red-200">
+                  <strong>Error:</strong> {error}
+                </p>
+              </div>
+            )}
+
+            <div className="bg-white bg-opacity-5 border border-white border-opacity-20 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-gray-400 text-sm">Current SmartBank Balance</span>
+                <ArrowDownCircle className="w-4 h-4 text-green-400" />
+              </div>
+              <p className="text-3xl font-bold text-white">{balance} ETH</p>
+              <p className="text-gray-500 text-sm mt-1">
+                {!isAuthenticated ? 'Authenticate to view balance' : isContractInitialized ? 'Balance loaded' : 'Loading...'}
+              </p>
+            </div>
+
             <div className="bg-blue-900 bg-opacity-30 border border-blue-400 border-opacity-30 rounded-lg p-4">
               <p className="text-sm text-blue-200">
-                <strong>Note:</strong> Make sure you have sufficient ETH in your MetaMask wallet and are connected to the Sepolia testnet.
+                <strong>Network:</strong> {network?.name || 'Unknown'} | 
+                <strong> Min Deposit:</strong> 0.001 ETH
               </p>
             </div>
 
             <button
               onClick={handleDeposit}
-              disabled={isLoading}
+              disabled={isLoading || !canTransact || !isContractInitialized || parseFloat(amount) < 0.001}
               className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 disabled:from-gray-500 disabled:to-gray-600 text-white py-4 rounded-lg font-bold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg disabled:cursor-not-allowed disabled:transform-none"
             >
               {isLoading ? 'Processing...' : 'Deposit ETH'}
             </button>
 
             <div className="text-center text-sm text-gray-400">
-              Transaction will require MetaMask confirmation
+              {!isAuthenticated && 'Please authenticate to make transactions'}
+              {isAuthenticated && !isConnected && 'Please connect wallet'}
+              {isAuthenticated && isConnected && isContractInitialized && 'Transaction will require MetaMask confirmation'}
             </div>
           </div>
         </div>

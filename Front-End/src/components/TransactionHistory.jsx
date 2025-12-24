@@ -1,18 +1,18 @@
 // Transaction History Component - Shows user's transaction events from blockchain
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useWeb3 } from '../contexts/Web3Context';
-import { useAuth } from '../contexts/AuthContext';
 import transactionService from '../services/transactionService';
+import smartBankService from '../services/smartBankService';
 import { ArrowUpRight, ArrowDownLeft, TrendingUp, Clock, ExternalLink, Loader2 } from 'lucide-react';
 
 const TransactionHistory = ({ limit = 10, showHeader = true, className = '' }) => {
   const { provider, contract, address, isAuthenticated } = useWeb3();
-  const { user } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [interestDetails, setInterestDetails] = useState(null);
 
   // Initialize unified transaction service
   useEffect(() => {
@@ -38,57 +38,82 @@ const TransactionHistory = ({ limit = 10, showHeader = true, className = '' }) =
   }, [provider, contract, address, isAuthenticated]);
 
   // Load transaction history and stats using unified service
-  useEffect(() => {
-    const loadTransactionData = async () => {
-      if (!isInitialized || !address) return;
+  const loadTransactionData = useCallback(async (forceRefresh = false) => {
+    if (!isInitialized || !address) return;
 
-      try {
+    try {
+      if (!forceRefresh) {
         setLoading(true);
-        setError(null);
+      }
+      setError(null);
 
-        // Load recent transactions using unified service
-        const transactionsResult = await transactionService.getRecentTransactions(address, limit);
+      console.log('Loading transaction data...', { forceRefresh, address });
+
+      // Load recent transactions using unified service with persistent storage
+      const transactionsResult = await transactionService.getUserTransactionHistory(address, { 
+        limit,
+        forceRefresh
+      });
+      
+      if (transactionsResult.success) {
+        setTransactions(transactionsResult.transactions || []);
+        console.log(`Loaded ${transactionsResult.transactions?.length || 0} transactions from ${transactionsResult.dataSource}`);
         
-        if (transactionsResult.success) {
-          setTransactions(transactionsResult.transactions || []);
-        } else {
-          console.warn('Failed to load transactions:', transactionsResult.error);
-          setTransactions([]);
-        }
-
-        // Load transaction statistics using unified service
-        const statsResult = await transactionService.getUserTransactionStats(address);
-        
-        if (statsResult.success) {
-          setStats(statsResult.stats);
-        } else {
-          console.warn('Failed to load stats:', statsResult.error);
-          setStats({
-            totalDeposits: 0,
-            totalWithdrawals: 0,
-            totalInterestEarned: 0,
-            totalTransactions: 0,
-            depositCount: 0,
-            withdrawalCount: 0,
-            interestCount: 0
-          });
-        }
-
-        // If no data at all, set a user-friendly message
-        if (!transactionsResult.success || (transactionsResult.transactions && transactionsResult.transactions.length === 0)) {
+        // If no transactions and not force refresh, show helpful message
+        if (!forceRefresh && (!transactionsResult.transactions || transactionsResult.transactions.length === 0)) {
           setError('No transaction history found. Make your first deposit to get started!');
         }
-
-      } catch (error) {
-        console.error('Failed to load transaction data:', error);
-        setError('Failed to load transaction history. Please try again.');
-      } finally {
-        setLoading(false);
+      } else {
+        console.warn('Failed to load transactions:', transactionsResult.error);
+        setTransactions([]);
+        setError(`Failed to load transactions: ${transactionsResult.error}`);
       }
-    };
 
-    loadTransactionData();
+      // Load transaction statistics using unified service
+      const statsResult = await transactionService.getUserTransactionStats(address);
+      
+      if (statsResult.success) {
+        setStats(statsResult.stats);
+      } else {
+        console.warn('Failed to load stats:', statsResult.error);
+        setStats({
+          totalDeposits: 0,
+          totalWithdrawals: 0,
+          totalInterestEarned: 0,
+          totalTransactions: 0,
+          depositCount: 0,
+          withdrawalCount: 0,
+          interestCount: 0
+        });
+      }
+
+      // Load detailed interest information
+      try {
+        const interestResult = await smartBankService.getInterestDetails(address);
+        if (interestResult.success) {
+          setInterestDetails(interestResult);
+        }
+      } catch (interestError) {
+        console.warn('Failed to load interest details:', interestError);
+      }
+
+    } catch (error) {
+      console.error('Failed to load transaction data:', error);
+      setError('Failed to load transaction history. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [isInitialized, address, limit]);
+
+  // Load data when component mounts or dependencies change
+  useEffect(() => {
+    loadTransactionData();
+  }, [isInitialized, address, limit, loadTransactionData]);
+
+  // Manual refresh function
+  const handleRefresh = () => {
+    loadTransactionData(true);
+  };
 
   // Set up real-time event subscription using unified service
   useEffect(() => {
@@ -185,7 +210,7 @@ const TransactionHistory = ({ limit = 10, showHeader = true, className = '' }) =
       case 'Interest':
         return 'Interest';
       default:
-        return type;
+        return type || 'Unknown';
     }
   };
 
@@ -232,8 +257,27 @@ const TransactionHistory = ({ limit = 10, showHeader = true, className = '' }) =
         <div className="p-6 border-b border-white border-opacity-10">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-white">Transaction History</h2>
-            <div className="text-sm text-gray-400">
-              {transactions.length} transactions
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-400">
+                {transactions.length} transactions
+              </div>
+              <button
+                onClick={handleRefresh}
+                disabled={loading}
+                className="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded-md transition-colors duration-200 flex items-center space-x-1"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Syncing...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>↻</span>
+                    <span>Refresh</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -266,6 +310,48 @@ const TransactionHistory = ({ limit = 10, showHeader = true, className = '' }) =
                 {stats.totalTransactions}
               </div>
               <div className="text-sm text-gray-400">Total Transactions</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interest Details */}
+      {interestDetails && interestDetails.success && (
+        <div className="p-6 border-b border-white border-opacity-10 bg-blue-500 bg-opacity-5">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <TrendingUp className="w-5 h-5 mr-2 text-blue-400" />
+            Interest Details
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <div className="text-gray-400">Current Balance</div>
+              <div className="text-white font-semibold">{interestDetails.principal} ETH</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Time Passed</div>
+              <div className="text-white font-semibold">{interestDetails.timePassedDays} days</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Raw Interest</div>
+              <div className="text-white font-semibold">{interestDetails.rawInterest} ETH</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Performance Fee (10%)</div>
+              <div className="text-red-400 font-semibold">-{interestDetails.performanceFee} ETH</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Net Interest</div>
+              <div className="text-green-400 font-semibold">+{interestDetails.netInterest} ETH</div>
+            </div>
+            <div>
+              <div className="text-gray-400">Projected Balance</div>
+              <div className="text-blue-400 font-semibold">{interestDetails.projectedBalance} ETH</div>
+            </div>
+          </div>
+          <div className="mt-4 p-3 bg-yellow-500 bg-opacity-10 rounded-lg border border-yellow-400 border-opacity-20">
+            <div className="text-yellow-400 text-sm">
+              <strong>Note:</strong> Interest is calculated and applied automatically every time you interact with the contract. 
+              Next calculation in {Math.max(0, Math.ceil((interestDetails.nextCalculationTime - Date.now() / 1000) / 86400))} days.
             </div>
           </div>
         </div>

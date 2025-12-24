@@ -278,29 +278,47 @@ class SessionService {
    */
   loadSessionData() {
     try {
+      // Graceful handling of missing localStorage
+      if (typeof localStorage === 'undefined') {
+        console.warn('localStorage not available - session data cannot be loaded');
+        return false;
+      }
+
       const storedToken = localStorage.getItem(AUTH_CONFIG.STORAGE_KEYS.SESSION_TOKEN);
       const storedProfile = localStorage.getItem(AUTH_CONFIG.STORAGE_KEYS.USER_PROFILE);
       const storedExpiry = localStorage.getItem('smartbank_session_expiry');
       const storedActivity = localStorage.getItem(AUTH_CONFIG.STORAGE_KEYS.LAST_ACTIVITY);
 
       if (storedToken && storedProfile && storedExpiry) {
-        this.sessionToken = storedToken;
-        this.userProfile = JSON.parse(storedProfile);
-        this.sessionExpiry = parseInt(storedExpiry);
-        this.lastActivity = storedActivity ? parseInt(storedActivity) : Date.now();
+        try {
+          this.sessionToken = storedToken;
+          this.userProfile = JSON.parse(storedProfile);
+          this.sessionExpiry = parseInt(storedExpiry);
+          this.lastActivity = storedActivity ? parseInt(storedActivity) : Date.now();
 
-        // Validate loaded session
-        if (this.isSessionValid()) {
-          console.log('Session loaded from storage');
-          this.setupSessionRenewal();
-          this.trackActivity();
-          return true;
+          // Validate loaded session
+          if (this.isSessionValid()) {
+            console.log('Session loaded from storage');
+            this.setupSessionRenewal();
+            this.trackActivity();
+            return true;
+          } else {
+            console.log('Loaded session is invalid or expired, clearing...');
+            this.clearSession();
+          }
+        } catch (parseError) {
+          console.error('Failed to parse stored session data:', parseError);
+          // Clear corrupted data
+          this.clearStoredSession();
         }
+      } else {
+        console.log('No session data found in storage');
       }
 
       return false;
     } catch (error) {
       console.error('Failed to load session data:', error);
+      // Don't propagate the error, just return false
       return false;
     }
   }

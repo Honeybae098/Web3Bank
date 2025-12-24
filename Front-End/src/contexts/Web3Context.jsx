@@ -1,9 +1,14 @@
-// Enhanced Web3 Context - Integration with authentication system
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+// Enhanced Web3 Context - Fixed version with proper service integration
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { ethers } from 'ethers';
 import { useAuth } from './AuthContext';
-import { AUTH_CONFIG, AUTH_ERRORS } from '../config/authConfig';
+import { AUTH_ERRORS } from '../config/authConfig';
 import authUtils from '../utils/authUtils';
+import addressUtils from '../utils/addressUtils';
+import { SmartBankABI, CONTRACT_ADDRESSES } from '../config/SmartBankConfig';
+import smartBankService from '../services/smartBankService';
+import transactionService from '../services/transactionService';
+import sessionService from '../services/sessionService';
 
 const Web3Context = createContext();
 
@@ -26,6 +31,11 @@ export const Web3Provider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState(null);
   const [authStatus, setAuthStatus] = useState('disconnected'); // disconnected, connecting, connected, authenticating
+  const [contract, setContract] = useState(null);
+  const [isContractInitialized, setIsContractInitialized] = useState(false);
+  const [transactionHistory, setTransactionHistory] = useState([]);
+  const [canTransact, setCanTransact] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Use authentication context
   const { 
@@ -58,36 +68,55 @@ export const Web3Provider = ({ children }) => {
     };
   }, []);
 
-  // Handle authentication state changes
+  // Handle authentication state changes (simplified)
   useEffect(() => {
     if (isAuthenticated && user?.address) {
       // Update Web3 address when user authenticates
       setAddress(user.address);
-      
-      // Verify wallet connection matches authenticated user
-      verifyWalletConnection(user.address);
-    } else if (!isAuthenticated) {
-      // Clear Web3 state when user logs out
-      disconnectWallet();
     }
+    // Removed verifyWalletConnection and disconnectWallet to prevent circular dependencies
   }, [isAuthenticated, user]);
+
+  // Auto-initialize contract when wallet is connected (simplified - no auth required)
+  useEffect(() => {
+    if (provider && signer && network && address) {
+      console.log('Initializing SmartBank contract...');
+      // Use a timeout to prevent blocking
+      const initTimeout = setTimeout(() => {
+        initializeContract();
+      }, 100);
+      
+      return () => clearTimeout(initTimeout);
+    }
+  }, [provider, signer, network, address]);
 
   /**
    * Initialize Web3 provider
    */
   const initializeProvider = useCallback(async () => {
     try {
+      if (!window.ethereum) {
+        console.warn('No Ethereum provider found - running in development mode');
+        setError('MetaMask not detected - some features may be limited');
+        return;
+      }
+
       const web3Provider = new ethers.BrowserProvider(window.ethereum);
       setProvider(web3Provider);
       
       // Check if already connected
-      const accounts = await web3Provider.listAccounts();
-      if (accounts.length > 0) {
-        await connectWallet();
+      try {
+        const accounts = await web3Provider.listAccounts();
+        if (accounts.length > 0) {
+          await connectWallet();
+        }
+      } catch (accountError) {
+        console.warn('No accounts available or user not connected');
+        // This is normal when MetaMask is installed but not connected
       }
     } catch (error) {
       console.error('Failed to initialize provider:', error);
-      setError('Failed to initialize Web3 provider');
+      setError('Failed to initialize Web3 provider - some features may be limited');
     }
   }, []);
 
@@ -100,13 +129,14 @@ export const Web3Provider = ({ children }) => {
     const handleAccountsChanged = (accounts) => {
       if (accounts.length === 0) {
         disconnectWallet();
-      } else if (accounts[0] !== address) {
+      } else if (!addressUtils.compareAddresses(accounts[0], address)) {
         setAddress(accounts[0]);
         updateBalance();
         
         // If user is authenticated, check if address matches
-        if (isAuthenticated && user?.address && accounts[0].toLowerCase() !== user.address.toLowerCase()) {
+        if (isAuthenticated && user?.address && !addressUtils.compareAddresses(user.address, accounts[0])) {
           console.warn('Wallet address changed - may require re-authentication');
+          setError('Wallet address changed - re-authentication required');
         }
       }
     };
@@ -149,7 +179,12 @@ export const Web3Provider = ({ children }) => {
   const connectWallet = useCallback(async () => {
     try {
       if (!window.ethereum) {
-        throw new Error('No wallet provider found');
+        setError('MetaMask not detected. Please install MetaMask to use wallet features.');
+        setAuthStatus('disconnected');
+        return {
+          success: false,
+          error: 'MetaMask not detected. Please install MetaMask to use wallet features.'
+        };
       }
 
       setIsConnecting(true);
@@ -184,8 +219,9 @@ export const Web3Provider = ({ children }) => {
       await updateBalance();
 
       // If user is authenticated, verify address matches
-      if (isAuthenticated && user?.address && currentAddress.toLowerCase() !== user.address.toLowerCase()) {
+      if (isAuthenticated && user?.address && !addressUtils.compareAddresses(user.address, currentAddress)) {
         console.warn('Authenticated user address does not match connected wallet');
+        setError('Wallet address does not match authenticated user');
       }
 
       return {
@@ -196,11 +232,20 @@ export const Web3Provider = ({ children }) => {
 
     } catch (error) {
       console.error('Wallet connection failed:', error);
-      setError(error.message || 'Failed to connect wallet');
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to connect wallet';
+      if (error.code === 4001) {
+        errorMessage = 'Connection rejected by user';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
       setAuthStatus('disconnected');
       return {
         success: false,
-        error: error.message
+        error: errorMessage
       };
     } finally {
       setIsConnecting(false);
@@ -219,6 +264,10 @@ export const Web3Provider = ({ children }) => {
     setIsConnected(false);
     setAuthStatus('disconnected');
     setError(null);
+    setContract(null);
+    setIsContractInitialized(false);
+    setCanTransact(false);
+    setTransactionHistory([]);
   }, []);
 
   /**
@@ -231,7 +280,7 @@ export const Web3Provider = ({ children }) => {
       }
 
       const currentAddress = await provider.getSigner().getAddress();
-      return currentAddress.toLowerCase() === expectedAddress.toLowerCase();
+      return addressUtils.compareAddresses(currentAddress, expectedAddress);
     } catch (error) {
       console.error('Wallet verification failed:', error);
       return false;
@@ -251,6 +300,82 @@ export const Web3Provider = ({ children }) => {
       console.error('Failed to update balance:', error);
     }
   }, [provider, address]);
+
+  /**
+   * Initialize SmartBank contract
+   */
+  const initializeContract = useCallback(async () => {
+    try {
+      // Graceful handling when dependencies are missing
+      if (!provider || !signer || !network) {
+        console.warn('Cannot initialize contract: missing provider, signer, or network');
+        console.log('This is normal in development mode without MetaMask');
+        return false;
+      }
+
+      const chainId = network.chainId;
+      const networkKey = chainId === 31337 ? 'localhost' : chainId === 11155111 ? 'sepolia' : 'mainnet';
+      const contractAddress = CONTRACT_ADDRESSES[networkKey];
+
+      if (!contractAddress || contractAddress === '0x0000000000000000000000000000000000000000') {
+        console.warn(`SmartBank contract not deployed on ${networkKey}`);
+        return false;
+      }
+
+      try {
+        const smartBankContract = new ethers.Contract(contractAddress, SmartBankABI, signer);
+        setContract(smartBankContract);
+      } catch (contractError) {
+        console.error('Failed to create contract instance:', contractError);
+        return false;
+      }
+
+      // Initialize services with error handling
+      try {
+        const smartBankResult = smartBankService.initialize(provider, signer, network);
+        if (!smartBankResult.success) {
+          console.warn('Failed to initialize smartBankService:', smartBankResult.error);
+          // Don't return false, just continue without service
+        }
+      } catch (smartBankError) {
+        console.warn('SmartBank service initialization error:', smartBankError);
+      }
+
+      try {
+        const transactionResult = await transactionService.initialize(provider, signer, contract, network);
+        if (!transactionResult) {
+          console.warn('Failed to initialize transactionService');
+          // Don't return false, just continue without service
+        }
+      } catch (transactionError) {
+        console.warn('Transaction service initialization error:', transactionError);
+      }
+
+      setIsContractInitialized(true);
+      setCanTransact(true);
+
+      // Load transaction history if user is authenticated
+      if (isAuthenticated && address && contract) {
+        try {
+          const history = await contract.getHistory(address);
+          setTransactionHistory(history.map(tx => ({
+            type: tx.txType,
+            amount: ethers.formatEther(tx.amount),
+            timestamp: new Date(tx.timestamp * 1000).toLocaleString()
+          })));
+        } catch (historyError) {
+          console.warn('Failed to load transaction history:', historyError);
+        }
+      }
+
+      console.log('SmartBank contract and services initialized successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to initialize contract:', error);
+      setError(`Contract initialization failed: ${error.message}`);
+      return false;
+    }
+  }, [provider, signer, network, isAuthenticated, address]);
 
   /**
    * Authenticate with Web3 signature
@@ -441,14 +566,14 @@ export const Web3Provider = ({ children }) => {
    */
   const isNetworkSupported = useCallback((chainId = network?.chainId) => {
     if (!chainId) return false;
-    return Object.values(AUTH_CONFIG.SUPPORTED_NETWORKS).includes(chainId);
+    return Object.values(CONTRACT_ADDRESSES).some(addr => addr !== '0x0000000000000000000000000000000000000000');
   }, [network]);
 
   /**
    * Get formatted address
    */
   const getFormattedAddress = useCallback(() => {
-    return address ? authUtils.formatAddress(address) : '';
+    return address ? addressUtils.formatAddress(address) : '';
   }, [address]);
 
   /**
@@ -461,7 +586,7 @@ export const Web3Provider = ({ children }) => {
 
     const basePermissions = ['view_public_info'];
     
-    if (user.role === AUTH_CONFIG.USER_ROLES.USER) {
+    if (user.role === 'USER') {
       return [
         ...basePermissions,
         'view_dashboard',
@@ -470,7 +595,7 @@ export const Web3Provider = ({ children }) => {
       ];
     }
 
-    if (user.role === AUTH_CONFIG.USER_ROLES.ADMIN) {
+    if (user.role === 'ADMIN') {
       return [
         ...basePermissions,
         'view_dashboard',
@@ -493,6 +618,21 @@ export const Web3Provider = ({ children }) => {
     return permissions.includes(permission);
   }, [getUserPermissions]);
 
+  /**
+   * Session management utilities (from sessionService)
+   */
+  const getStoredSession = useCallback(() => {
+    return sessionService.getSessionData();
+  }, []);
+
+  const updateSession = useCallback(() => {
+    return sessionService.extendSession();
+  }, []);
+
+  const clearStoredSession = useCallback(() => {
+    sessionService.clearSession();
+  }, []);
+
   // Auto-update balance when address changes
   useEffect(() => {
     if (address && isConnected) {
@@ -505,7 +645,7 @@ export const Web3Provider = ({ children }) => {
   }, [address, isConnected, updateBalance]);
 
   // Context value
-  const contextValue = {
+  const contextValue = useMemo(() => ({
     // State
     provider,
     signer,
@@ -516,12 +656,16 @@ export const Web3Provider = ({ children }) => {
     isConnected,
     error,
     authStatus,
+    contract,
+    isContractInitialized,
+    transactionHistory,
+    canTransact,
+    isLoading,
 
     // Derived state
     isAuthenticated: isAuthenticated && isConnected,
     isReady: !authLoading && !isInitializing,
-    canTransact: isAuthenticated && isConnected && hasPermission('make_transactions'),
-    isAdmin: isAuthenticated && checkRole(AUTH_CONFIG.USER_ROLES.ADMIN),
+    isAdmin: isAuthenticated && checkRole('ADMIN'),
     permissions: getUserPermissions(),
     formattedAddress: getFormattedAddress(),
 
@@ -537,14 +681,63 @@ export const Web3Provider = ({ children }) => {
     verifyWalletConnection,
     hasPermission,
     isNetworkSupported,
+    initializeContract,
+
+    // Session management (for compatibility with provided code)
+    getStoredSession,
+    updateSession,
+    clearStoredSession,
+
+    // Services
+    smartBankService,
+    transactionService,
 
     // Utilities
     utils: {
-      formatAddress: authUtils.formatAddress,
-      isValidAddress: authUtils.isValidAddress,
-      normalizeAddress: authUtils.normalizeAddress
+      formatAddress: addressUtils.formatAddress,
+      isValidAddress: addressUtils.isValidAddress,
+      normalizeAddress: addressUtils.normalizeAddress,
+      compareAddresses: addressUtils.compareAddresses
     }
-  };
+  }), [
+    provider,
+    signer,
+    address,
+    network,
+    balance,
+    isConnecting,
+    isConnected,
+    error,
+    authStatus,
+    contract,
+    isContractInitialized,
+    transactionHistory,
+    canTransact,
+    isLoading,
+    isAuthenticated,
+    authLoading,
+    isInitializing,
+    user,
+    getUserPermissions,
+    getFormattedAddress,
+    connectWallet,
+    disconnectWallet,
+    authenticateWithWeb3,
+    registerWithWeb3,
+    sendTransaction,
+    signMessage,
+    switchNetwork,
+    updateBalance,
+    verifyWalletConnection,
+    hasPermission,
+    isNetworkSupported,
+    initializeContract,
+    getStoredSession,
+    updateSession,
+    clearStoredSession,
+    smartBankService,
+    transactionService
+  ]);
 
   return (
     <Web3Context.Provider value={contextValue}>

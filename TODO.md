@@ -1,28 +1,36 @@
-# Transaction History Integration Implementation TODO
+# ESLint Errors Fix Plan
 
-## Phase 1: Critical Fixes
-- [x] 1. Fix event name mismatch in smartBankService.js (Withdrawal → Withdraw)
-- [x] 2. Update blockchainEventsService.js event type handling
-- [x] 3. Add InterestPaid event support to smartBankService.js
+## Issues Identified:
 
-## Phase 2: Enhanced Integration
-- [x] 4. Implement hybrid data loading in TransactionHistory.jsx
-- [x] 5. Add proper fallback mechanisms
-- [x] 6. Enhanced real-time synchronization with both services
+### Deposit.jsx Errors:
+1. **Line 9**: `'provider'` and `'signer'` are assigned but never used
+   - **Root Cause**: Variables destructured from useWeb3 but not used in component
+   
+2. **Line 20, 41**: React Hook useEffect has missing dependency: `'loadBalance'`
+   - **Root Cause**: `loadBalance` function referenced in dependency array but not included
 
-## Phase 3: Service Unification
-- [x] 7. Create unified transaction service (transactionService.js)
-- [x] 8. Update component imports and usage in TransactionHistory.jsx
-- [x] 9. Simplified data loading with unified service
+### Withdraw.jsx Errors:
+1. **Line 9**: `'provider'`, `'signer'`, and `'network'` are assigned but never used
+   - **Root Cause**: Variables destructured from useWeb3 but not used in component
+   
+2. **Line 20**: React Hook useEffect has missing dependency: `'loadBalance'`
+   - **Root Cause**: `loadBalance` function referenced in dependency array but not included
 
-## Phase 4: Testing & Verification
-- [x] 10. Integration completed - ready for testing
-- [x] 11. Real-time updates implemented via unified service
-- [x] 12. Hybrid data loading (stored history + events)
-- [x] 13. Fallback mechanisms implemented
+## Fix Plan:
 
-## Implementation Priority
-1. **High Priority**: Event name fixes (critical for basic functionality)
-2. **Medium Priority**: Data source unification (improves reliability)
-3. **Low Priority**: Enhanced features (nice-to-have improvements)
+### Step 1: Fix Unused Variables
+- Remove unused destructured variables (`provider`, `signer`, `network`) from useWeb3 calls
+- Keep only the variables that are actually used in the components
+
+### Step 2: Fix useEffect Dependencies
+- Add `loadBalance` to the dependency arrays in useEffect hooks
+- This ensures the useEffect re-runs when the function changes
+
+### Step 3: Test and Verify
+- Run ESLint to confirm all errors are resolved
+- Verify the components still function correctly
+
+## Files to Edit:
+1. `/Users/macbook/smartbank/Front-End/src/pages/Deposit.jsx`
+2. `/Users/macbook/smartbank/Front-End/src/pages/Withdraw.jsx`
 

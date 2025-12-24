@@ -283,8 +283,8 @@ export const SmartBankABI = [
 
 // Contract addresses - Updated after successful deployment
 export const CONTRACT_ADDRESSES = {
-  localhost: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9', // Deployed SmartBank contract
-  sepolia: '0x0000000000000000000000000000000000000000', // Replace with actual address
+  localhost: '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0', // Deployed SmartBank contract
+  // sepolia: '0x0000000000000000000000000000000000000000', // Replace with actual address
   mainnet: '0x0000000000000000000000000000000000000000'   // When ready for mainnet
 };
 
@@ -295,19 +295,19 @@ export const NETWORK_CONFIGS = {
     name: 'Localhost',
     rpcUrl: 'http://127.0.0.1:8545',
     explorer: null
-  },
-  sepolia: {
-    chainId: 11155111,
-    name: 'Sepolia',
-    rpcUrl: 'https://rpc.sepolia.org',
-    explorer: 'https://sepolia.etherscan.io'
-  },
-  mainnet: {
-    chainId: 1,
-    name: 'Ethereum',
-    rpcUrl: 'https://mainnet.infura.io/v3/YOUR_PROJECT_ID',
-    explorer: 'https://etherscan.io'
   }
+  // sepolia: {
+  //   chainId: 11155111,
+  //   name: 'Sepolia',
+  //   rpcUrl: 'https://rpc.sepolia.org',
+  //   explorer: 'https://sepolia.etherscan.io'
+  // },
+  // mainnet: {
+  //   chainId: 1,
+  //   name: 'Ethereum',
+  //   rpcUrl: 'https://mainnet.infura.io/v3/YOUR_PROJECT_ID',
+  //   explorer: 'https://etherscan.io'
+  // }
 };
 
 // Contract constants
@@ -335,8 +335,7 @@ export const SmartBankUtils = {
     const typeMap = {
       'Deposit': 'Deposit',
       'Withdraw': 'Withdrawal', 
-      'InterestPaid': 'Interest Earned',
-      'Interest Earned': 'Interest Earned'
+      'InterestPaid': 'Interest Payment'
     };
     return typeMap[txType] || txType;
   },

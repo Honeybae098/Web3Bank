@@ -29,8 +29,14 @@ export const AuthProvider = ({ children }) => {
         setIsLoading(true);
         setIsInitializing(true);
 
-        // Initialize auth service
-        await authService.initialize();
+        // Initialize auth service with timeout
+        const initTimeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Auth initialization timeout')), 5000);
+        });
+
+        const initPromise = authService.initialize();
+        
+        await Promise.race([initPromise, initTimeout]);
 
         // Check if user is already authenticated
         if (authService.isUserAuthenticated()) {
@@ -48,8 +54,9 @@ export const AuthProvider = ({ children }) => {
 
         setIsInitializing(false);
       } catch (error) {
-        console.error('Failed to initialize authentication:', error);
-        setError('Failed to initialize authentication');
+        console.warn('Authentication initialization failed:', error.message);
+        setError('Authentication service unavailable - running in development mode');
+        setIsInitializing(false); // Ensure initialization completes even on error
       } finally {
         setIsLoading(false);
       }
@@ -57,8 +64,18 @@ export const AuthProvider = ({ children }) => {
 
     initializeAuth();
 
+    // Add a fallback timeout to ensure initialization always completes
+    const timeoutId = setTimeout(() => {
+      if (isInitializing) {
+        console.warn('Authentication initialization timed out, forcing completion');
+        setIsInitializing(false);
+        setError('Authentication initialization timed out');
+      }
+    }, 3000); // Reduced to 3 second timeout
+
     // Cleanup
     return () => {
+      clearTimeout(timeoutId);
       authService.removeEventListener('user_logged_in', handleUserLoggedIn);
       authService.removeEventListener('user_logged_out', handleUserLoggedOut);
       authService.removeEventListener('user_registered', handleUserRegistered);
