@@ -7,7 +7,9 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 contract SmartBank is OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
     // STORAGE
+    address private _deployer;
     mapping(address => uint256) private balances;
+
     mapping(address => uint256) public lastInterestCalculationTime;
     uint256 public totalTreasuryFees; // Bank's accumulated profit
 
@@ -32,6 +34,8 @@ contract SmartBank is OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgrad
     // UPGRADE PATTERN
     /// @custom:oz-retyped-from constructor
     function initialize() public initializer {
+        require(_deployer == address(0), "Already initialized");
+        _deployer = msg.sender;
         __Ownable_init(msg.sender);
         __ReentrancyGuard_init();
         __UUPSUpgradeable_init();
@@ -80,23 +84,30 @@ contract SmartBank is OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgrad
         uint256 currentTime = block.timestamp;
         uint256 lastTime = lastInterestCalculationTime[user];
 
-        if (balances[user] > 0 && lastTime > 0) {
+        if (balances[user] > 0 && lastTime > 0 && lastTime < currentTime) {
             uint256 timePassed = currentTime - lastTime;
-            
-            // Raw interest calculation
-            uint256 totalInterest = (balances[user] * INTEREST_RATE_BP * timePassed) / 
-                                    (BASE_RATE_FACTOR * SECONDS_IN_YEAR);
 
-            if (totalInterest > 0) {
+            // Prevent overflow by using safe multiplication and division
+            // Calculate interest step by step to avoid large intermediate values
+            uint256 balance = balances[user];
+
+            // First multiply by interest rate (500 BP = 5%)
+            uint256 interestRateScaled = (balance * INTEREST_RATE_BP) / BASE_RATE_FACTOR;
+
+            // Then multiply by time passed and divide by seconds in year
+            uint256 totalInterest = (interestRateScaled * timePassed) / SECONDS_IN_YEAR;
+
+            if (totalInterest > 0 && totalInterest <= balance) { // Ensure interest doesn't exceed principal
                 // Calculate bank's cut (Performance Fee)
                 uint256 bankCut = (totalInterest * PERFORMANCE_FEE_BP) / BASE_RATE_FACTOR;
                 uint256 userShare = totalInterest - bankCut;
 
-                balances[user] += userShare;
+                // Safe addition with overflow check
+                balances[user] = balance + userShare;
                 totalTreasuryFees += bankCut; // Store the fee in the treasury
 
                 _recordTransaction(user, "InterestPaid", userShare);
-                
+
                 // Emit event for Web3 transaction history
                 emit InterestPaid(user, userShare, currentTime);
             }

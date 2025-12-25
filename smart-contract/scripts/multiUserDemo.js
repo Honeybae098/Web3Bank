@@ -1,7 +1,7 @@
 // Multi-User Demo Script - Test Web3 Authentication & Multi-User Design
 // This script demonstrates how multiple users can interact with SmartBank securely
 
-const { ethers } = require('hardhat');
+const { ethers, upgrades } = require('hardhat');
 
 async function main() {
     console.log('🚀 SmartBank Multi-User Demo Starting...\n');
@@ -18,44 +18,33 @@ async function main() {
     // Deploy SmartBank contract
     console.log('🔨 Deploying SmartBank contract...');
     const SmartBank = await ethers.getContractFactory('SmartBank');
-    const smartBank = await SmartBank.deploy();
+    const smartBank = await upgrades.deployProxy(SmartBank, [], {
+        initializer: "initialize",
+        kind: "uups",
+    });
     await smartBank.waitForDeployment();
     const contractAddress = await smartBank.getAddress();
-    
-    console.log(`✅ SmartBank deployed at: ${contractAddress}\n`);
 
-    // Initialize contract
-    console.log('⚙️ Initializing SmartBank contract...');
-    await smartBank.initialize();
-    console.log('✅ Contract initialized\n');
+    console.log(`✅ SmartBank deployed at: ${contractAddress}\n`);
 
     // Demo: Multiple users make deposits
     console.log('💰 Demo: Users making deposits...');
     
     // User 1 deposits 1 ETH
     console.log(`\n👤 User 1 (${user1.address}) depositing 1 ETH...`);
-    const tx1 = await user1.sendTransaction({
-        to: contractAddress,
-        value: ethers.parseEther('1.0')
-    });
+    const tx1 = await smartBank.connect(user1).deposit({ value: ethers.parseEther('1.0') });
     await tx1.wait();
     console.log(`✅ User 1 deposit confirmed: ${tx1.hash}`);
 
     // User 2 deposits 2 ETH
     console.log(`\n👤 User 2 (${user2.address}) depositing 2 ETH...`);
-    const tx2 = await user2.sendTransaction({
-        to: contractAddress,
-        value: ethers.parseEther('2.0')
-    });
+    const tx2 = await smartBank.connect(user2).deposit({ value: ethers.parseEther('2.0') });
     await tx2.wait();
     console.log(`✅ User 2 deposit confirmed: ${tx2.hash}`);
 
     // User 3 deposits 0.5 ETH
     console.log(`\n👤 User 3 (${user3.address}) depositing 0.5 ETH...`);
-    const tx3 = await user3.sendTransaction({
-        to: contractAddress,
-        value: ethers.parseEther('0.5')
-    });
+    const tx3 = await smartBank.connect(user3).deposit({ value: ethers.parseEther('0.5') });
     await tx3.wait();
     console.log(`✅ User 3 deposit confirmed: ${tx3.hash}`);
 
@@ -87,7 +76,7 @@ async function main() {
     console.log(`\n📈 All Deposit Events (${depositEvents.length} total):`);
     depositEvents.forEach((event, index) => {
         const [user, amount, timestamp] = event.args;
-        console.log(`   ${index + 1}. User: ${user}, Amount: ${ethers.formatEther(amount)} ETH, Time: ${new Date(timestamp * 1000).toLocaleString()}`);
+        console.log(`   ${index + 1}. User: ${user}, Amount: ${ethers.formatEther(amount)} ETH, Time: ${new Date(Number(timestamp) * 1000).toLocaleString()}`);
     });
 
     // Demo: User-specific event filtering
@@ -100,7 +89,7 @@ async function main() {
     console.log(`\n👤 User 1's Deposit Events (${user1Events.length} total):`);
     user1Events.forEach((event, index) => {
         const [user, amount, timestamp] = event.args;
-        console.log(`   ${index + 1}. Amount: ${ethers.formatEther(amount)} ETH, Time: ${new Date(timestamp * 1000).toLocaleString()}`);
+        console.log(`   ${index + 1}. Amount: ${ethers.formatEther(amount)} ETH, Time: ${new Date(Number(timestamp) * 1000).toLocaleString()}`);
     });
 
     // Demo: Check final balances
@@ -128,15 +117,11 @@ async function main() {
     console.log('   ✅ Web3 authentication via wallet address works correctly');
     console.log('   ✅ Events provide transparent audit trail');
 
-    console.log('\n🎉 Multi-User Demo Completed Successfully!');
-    console.log('\n📋 MetaMask Setup Instructions:');
-    console.log('1. Import these private keys into MetaMask:');
-    console.log(`   User 1: ${await user1.getPrivateKey()}`);
-    console.log(`   User 2: ${await user2.getPrivateKey()}`);
-    console.log(`   User 3: ${await user3.getPrivateKey()}`);
-    console.log('2. Connect to Localhost 8545 network');
-    console.log('3. Switch between accounts to test multi-user functionality');
-    console.log('4. Each account will only see their own transactions');
+    // console.log('\n🎉 Multi-User Demo Completed Successfully!');
+    // console.log('\n📋 MetaMask Setup Instructions:');
+    // console.log('1. Connect to Localhost 8545 network in MetaMask');
+    // console.log('2. Use the account addresses shown above to test multi-user functionality');
+    // console.log('3. Each account will only see their own transactions');
 
     return {
         contractAddress,

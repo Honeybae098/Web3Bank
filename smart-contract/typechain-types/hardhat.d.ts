@@ -34,10 +34,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.ReentrancyGuardUpgradeable__factory>;
     getContractFactory(
-      name: "Ownable",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.Ownable__factory>;
-    getContractFactory(
       name: "IERC1822Proxiable",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IERC1822Proxiable__factory>;
@@ -104,11 +100,6 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.ReentrancyGuardUpgradeable>;
     getContractAt(
-      name: "Ownable",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.Ownable>;
-    getContractAt(
       name: "IERC1822Proxiable",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -180,10 +171,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.ReentrancyGuardUpgradeable>;
     deployContract(
-      name: "Ownable",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.Ownable>;
-    deployContract(
       name: "IERC1822Proxiable",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC1822Proxiable>;
@@ -249,11 +236,6 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.ReentrancyGuardUpgradeable>;
-    deployContract(
-      name: "Ownable",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.Ownable>;
     deployContract(
       name: "IERC1822Proxiable",
       args: any[],
