@@ -6,8 +6,8 @@ export const AUTH_CONFIG = {
   },
   SUPPORTED_NETWORKS: {
     LOCALHOST: 31337,
-    SEPOLIA: 11155111,
-    MAINNET: 1
+    // SEPOLIA: 11155111,
+    // MAINNET: 1
   },
   SESSION_DURATION: 30 * 60 * 1000, // 30 minutes
   SESSION_TIMEOUT: 30 * 60 * 1000, // 30 minutes (for sessionService compatibility)

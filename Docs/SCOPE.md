@@ -67,7 +67,7 @@ function withdraw(uint amount) public {
 Issue: ETH sent before state update → multiple withdrawals possible.
 
 ```
-##  Unsafe Contract
+##  Safe Contract
 scss
 Copy code
 withdraw()
